@@ -1,4 +1,4 @@
-import os
+import os, csv, re
 from classes.classes import News, Private, Funny
 from pathlib import Path
 
@@ -101,3 +101,80 @@ class FileParse:
             print(f.read())
 
         os.remove(file_path)
+
+class CsvProcessor:
+    @staticmethod
+    def word_count():
+        board_path = Path(__file__).parent.parent / "data" / "board.txt"
+        
+        with open(board_path, "r", encoding="utf-8") as f:
+            text = f.read().lower()
+
+        words = re.findall(r"[a-zA-Z]+", text)
+
+        dict_word_count = {}
+
+        for word in words:
+            if word in dict_word_count:
+                dict_word_count[word] += 1
+            else:
+                dict_word_count[word] = 1
+
+        return dict_word_count
+        
+    @staticmethod
+    def csv_word_count():
+        csv_path = Path(__file__).parent.parent / "csv_proccesed" / "csv_word_count.csv"
+        
+        count = CsvProcessor.word_count()
+        
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["word", "count"])  
+            for word, freq in count.items():
+                writer.writerow([word, freq])
+
+    @staticmethod
+    def letter_count():
+        board_path = Path(__file__).parent.parent / "data" / "board.txt"
+
+        with open(board_path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        letters = [char for char in text if char.isalpha()]
+        total_letters = len(letters)
+
+        dict_letter_count = {}
+
+        for char in letters:
+            letter_lower = char.lower()
+
+            if letter_lower not in dict_letter_count:
+                dict_letter_count[letter_lower] = [0, 0, 0]
+
+            dict_letter_count[letter_lower][0] += 1
+
+            if char.isupper():
+                dict_letter_count[letter_lower][1] += 1
+
+        for letter in dict_letter_count:
+            count_all = dict_letter_count[letter][0]
+            percentage = (count_all / total_letters) * 100
+            dict_letter_count[letter][2] = percentage
+
+        return dict_letter_count
+
+    @staticmethod
+    def csv_letter_count():
+        csv_path = Path(__file__).parent.parent / "csv_proccesed" / "csv_letter_count.csv"
+        letter_count = CsvProcessor.letter_count()
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["letter", "count_all", "count_uppercase", "percentage"])  
+            for letter, data in letter_count.items():
+                writer.writerow([letter, data[0], data[1], f"{data[2]:.2f}%"])
+
+
+
+
