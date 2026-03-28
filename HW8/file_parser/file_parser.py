@@ -1,3 +1,5 @@
+import json
+from pydoc import text
 import os, csv, re
 from classes.classes import News, Private, Funny
 from pathlib import Path
@@ -38,9 +40,9 @@ class FileParse:
         return TextNormalization(text).fix_misspelling()
 
     @staticmethod
-    def process_file():
+    def process_json():
 
-        file_path = input("Enter file path or press Enter for default: ")
+        file_path = input("Enter JSON file path or press Enter for default: ")
 
         if file_path == "":
             file_path = FileParse.announcement_path
@@ -101,6 +103,61 @@ class FileParse:
             print(f.read())
 
         os.remove(file_path)
+
+
+class JsonProcessor:
+    announcement_path = Path(__file__).parent.parent / "data" / "announcements.json"
+    board_path = Path(__file__).parent.parent / "data" / "board.txt"
+
+    @staticmethod
+    def normalize_json(text):
+        return TextNormalization(text).fix_misspelling()
+
+    @staticmethod
+    def process_json():
+
+        file_path = input("Enter JSON file path or press Enter for default: ")
+
+        if file_path == "":
+            file_path = JsonProcessor.announcement_path
+        
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        for record in data:
+            record_type = record.get("type")
+            title = JsonProcessor.normalize_json(record.get("title"))
+
+            if record_type == "1":
+
+                new = News(record.get("location"), "News", title)
+
+                with open(JsonProcessor.board_path, "a", encoding="utf-8") as f:
+                    f.write(new.publish_datatype())
+                    f.write(new.publish_something())
+                    f.write(new.publish_city())
+
+            elif record_type == "2":
+                private = Private(record.get("date"), "Private Ad", title)
+
+                with open(JsonProcessor.board_path, "a", encoding="utf-8") as f:
+                    f.write(private.publish_datatype())
+                    f.write(private.publish_something())
+                    f.write(private.count_exp())
+
+            elif record_type == "3":
+                funny = Funny(title, "Entertainment")
+
+                with open(JsonProcessor.board_path, "a", encoding="utf-8") as f:
+                    f.write(funny.publish_datatype())
+                    f.write(funny.publish_something())
+                    f.write(funny.random_lucky_day())
+            
+        with open(JsonProcessor.board_path, "r", encoding="utf-8") as f:
+                print(f.read())
+
+        os.remove(file_path)
+
 
 class CsvProcessor:
     @staticmethod
@@ -177,4 +234,4 @@ class CsvProcessor:
 
 
 
-
+    
