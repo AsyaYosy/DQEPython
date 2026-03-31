@@ -3,6 +3,7 @@ from pydoc import text
 import os, csv, re
 from classes.classes import News, Private, Funny
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 
 class TextNormalization:
@@ -233,5 +234,56 @@ class CsvProcessor:
                 writer.writerow([letter, data[0], data[1], f"{data[2]:.2f}%"])
 
 
+class XmlProcessor:
+    announcement_path = Path(__file__).parent.parent / "data" / "announcements.xml"
+    board_path = Path(__file__).parent.parent / "data" / "board.txt"
 
-    
+    @staticmethod
+    def normalize_xml(text):
+        return TextNormalization(text).fix_misspelling()
+
+    @staticmethod
+    def process_xml():
+
+        file_path = input("Enter XML file path or press Enter for default: ")
+
+        if file_path == "":
+            file_path = XmlProcessor.announcement_path
+
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+
+        with open(XmlProcessor.board_path, "a", encoding="utf-8") as f:
+
+            for record in root.findall("type"):
+                record_type = record.get("name")
+
+                title = record.findtext("title", default="")
+                title = XmlProcessor.normalize_xml(title)
+
+                if record_type == "1":
+                    location = record.findtext("location", default="")
+
+                    new = News(location, "News", title)
+                    f.write(new.publish_datatype())
+                    f.write(new.publish_something())
+                    f.write(new.publish_city())
+
+                elif record_type == "2":
+                    date = record.findtext("date", default="")
+
+                    private = Private(date, "Private Ad", title)
+                    f.write(private.publish_datatype())
+                    f.write(private.publish_something())
+                    f.write(private.count_exp())
+
+                elif record_type == "3":
+                    funny = Funny(title, "Entertainment")
+                    f.write(funny.publish_datatype())
+                    f.write(funny.publish_something())
+                    f.write(funny.random_lucky_day())
+
+        with open(XmlProcessor.board_path, "r", encoding="utf-8") as f:
+            print(f.read())
+
+        os.remove(file_path)
