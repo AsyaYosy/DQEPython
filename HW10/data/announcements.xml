@@ -1,0 +1,13 @@
+<announcements>
+    <type name="1">
+        <title>John JacKson woN the game and iz the best RunneR!</title>
+        <location>Warsaw</location>
+    </type>
+    <type name="2">
+        <title>Pianno Lessons</title>
+        <date>2024-06-01</date>
+    </type>
+    <type name="3">
+        <title>Buy a flat</title>
+    </type>
+</announcements>
