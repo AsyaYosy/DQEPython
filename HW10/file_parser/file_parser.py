@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pydoc import text
 import os, csv, re
 from classes.classes import News, Private, Funny
@@ -68,6 +69,7 @@ class FileParse:
                     f.write(new.publish_datatype())
                     f.write(new.publish_something())
                     f.write(new.publish_city())
+                DatabaseProcessor.save_news(new)
 
                 i += 3
 
@@ -82,6 +84,7 @@ class FileParse:
                     f.write(private.publish_datatype())
                     f.write(private.publish_something())
                     f.write(private.count_exp())
+                DatabaseProcessor.save_private_ad(private)
 
                 i += 3
 
@@ -90,11 +93,13 @@ class FileParse:
                 text = FileParse.normalize(lines[i+1])
 
                 funny = Funny(text, "Entertainment")
+                lucky_day_str = funny.random_lucky_day()
 
                 with open(FileParse.board_path, "a", encoding="utf-8") as f:
                     f.write(funny.publish_datatype())
                     f.write(funny.publish_something())
-                    f.write(funny.random_lucky_day())
+                    f.write(lucky_day_str)
+                DatabaseProcessor.save_funny(funny, lucky_day_str.strip().split(": ")[-1])
 
                 i += 2
 
@@ -137,6 +142,7 @@ class JsonProcessor:
                     f.write(new.publish_datatype())
                     f.write(new.publish_something())
                     f.write(new.publish_city())
+                DatabaseProcessor.save_news(new)
 
             elif record_type == "2":
                 private = Private(record.get("date"), "Private Ad", title)
@@ -145,20 +151,139 @@ class JsonProcessor:
                     f.write(private.publish_datatype())
                     f.write(private.publish_something())
                     f.write(private.count_exp())
+                DatabaseProcessor.save_private_ad(private)
 
             elif record_type == "3":
                 funny = Funny(title, "Entertainment")
+                lucky_day_str = funny.random_lucky_day()
 
                 with open(JsonProcessor.board_path, "a", encoding="utf-8") as f:
                     f.write(funny.publish_datatype())
                     f.write(funny.publish_something())
-                    f.write(funny.random_lucky_day())
+                    f.write(lucky_day_str)
+                DatabaseProcessor.save_funny(funny, lucky_day_str.strip().split(": ")[-1])
             
         with open(JsonProcessor.board_path, "r", encoding="utf-8") as f:
                 print(f.read())
 
         os.remove(file_path)
 
+class DatabaseProcessor:
+    """Saves News, Private Ad and Funny records to an SQLite database.
+    Each record type is stored in its own table.
+    Duplicate records]are skipped.
+    """
+
+    db_path = Path(__file__).parent.parent / "data" / "announcements.db"
+
+    @classmethod
+    def _get_connection(cls):
+        return sqlite3.connect(cls.db_path)
+
+    @classmethod
+    def initialize_db(cls):
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS news (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text         TEXT    NOT NULL,
+                    city         TEXT    NOT NULL,
+                    published_at TEXT    NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS private_ads (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text         TEXT    NOT NULL,
+                    expiry_date  TEXT    NOT NULL,
+                    days_left    INTEGER NOT NULL,
+                    published_at TEXT    NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS funny (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text         TEXT NOT NULL,
+                    lucky_day    TEXT NOT NULL,
+                    published_at TEXT NOT NULL
+                )
+            """)
+            conn.commit()
+
+    @classmethod
+    def save_news(cls, news_obj):
+        import datetime
+        cls.initialize_db()
+        now = datetime.datetime.now()
+        published_at = f"{now.strftime('%x')} {now.strftime('%X')}"
+
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM news WHERE text = ? AND city = ?",
+                (news_obj.text, news_obj.city)
+            )
+            if cursor.fetchone():
+                print(f"[DB] Duplicate News skipped: '{news_obj.text[:60]}'")
+                return False
+            cursor.execute(
+                "INSERT INTO news (text, city, published_at) VALUES (?, ?, ?)",
+                (news_obj.text, news_obj.city, published_at)
+            )
+            conn.commit()
+            print(f"[DB] News saved: '{news_obj.text[:60]}'")
+            return True
+
+    @classmethod
+    def save_private_ad(cls, private_obj):
+        import datetime
+        cls.initialize_db()
+        now_date = datetime.datetime.now().date()
+        expiry_date = datetime.datetime.strptime(private_obj.date, "%Y-%m-%d").date()
+        days_left = (expiry_date - now_date).days
+        published_at = str(now_date)
+
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM private_ads WHERE text = ? AND expiry_date = ?",
+                (private_obj.text, private_obj.date)
+            )
+            if cursor.fetchone():
+                print(f"[DB] Duplicate Private Ad skipped: '{private_obj.text[:60]}'")
+                return False
+            cursor.execute(
+                "INSERT INTO private_ads (text, expiry_date, days_left, published_at)"
+                " VALUES (?, ?, ?, ?)",
+                (private_obj.text, private_obj.date, days_left, published_at)
+            )
+            conn.commit()
+            print(f"[DB] Private Ad saved: '{private_obj.text[:60]}'")
+            return True
+
+    @classmethod
+    def save_funny(cls, funny_obj, lucky_day):
+        import datetime
+        cls.initialize_db()
+        published_at = str(datetime.datetime.now().date())
+
+        with cls._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM funny WHERE text = ?",
+                (funny_obj.text,)
+            )
+            if cursor.fetchone():
+                print(f"[DB] Duplicate Funny skipped: '{funny_obj.text[:60]}'")
+                return False
+            cursor.execute(
+                "INSERT INTO funny (text, lucky_day, published_at) VALUES (?, ?, ?)",
+                (funny_obj.text, lucky_day, published_at)
+            )
+            conn.commit()
+            print(f"[DB] Funny saved: '{funny_obj.text[:60]}'")
+            return True
 
 class CsvProcessor:
     @staticmethod
@@ -268,6 +393,7 @@ class XmlProcessor:
                     f.write(new.publish_datatype())
                     f.write(new.publish_something())
                     f.write(new.publish_city())
+                    DatabaseProcessor.save_news(new)
 
                 elif record_type == "2":
                     date = record.findtext("date", default="")
@@ -276,12 +402,15 @@ class XmlProcessor:
                     f.write(private.publish_datatype())
                     f.write(private.publish_something())
                     f.write(private.count_exp())
+                    DatabaseProcessor.save_private_ad(private)
 
                 elif record_type == "3":
                     funny = Funny(title, "Entertainment")
+                    lucky_day_str = funny.random_lucky_day()
                     f.write(funny.publish_datatype())
                     f.write(funny.publish_something())
-                    f.write(funny.random_lucky_day())
+                    f.write(lucky_day_str)
+                    DatabaseProcessor.save_funny(funny, lucky_day_str.strip().split(": ")[-1])
 
         with open(XmlProcessor.board_path, "r", encoding="utf-8") as f:
             print(f.read())
