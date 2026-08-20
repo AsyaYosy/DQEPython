@@ -24,5 +24,5 @@ for k in sorted_list:
 avg_even = even/n_even
 avg_odd = odd/n_odd
 
-#4 print both average result in console 
+#4 print both of average results in console 
 print(avg_even, avg_odd)
